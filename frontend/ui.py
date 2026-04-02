@@ -324,7 +324,7 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{len(df):,}</div>
+    <div class="metric-value">{len(df) if df is not None else 0:,}</div>
         <div class="metric-label">📊 Total Rows</div>
     </div>
     """, unsafe_allow_html=True)
