@@ -71,50 +71,110 @@ class AIExcelAgent:
 
     def _smart_response(self, query: str) -> str:
         """Generate smart rule-based responses."""
-        query_lower = query.lower()
+        query_lower = query.lower().strip()
         
         if self.df is None:
-            return "No data loaded. Please upload an Excel file first."
+            return "❌ No data loaded. Please upload an Excel file first."
         
-        # Summary questions
-        if any(word in query_lower for word in ["summary", "summarize", "overview", "about", "what in", "what's in", "what is in"]):
+        # Greeting
+        if query_lower in ["hi", "hello", "hey", "start"]:
+            return f"👋 Hello! I'm your AI Excel Agent. Your file has **{len(self.df):,} rows** and **{len(self.df.columns)} columns**. Ask me anything about your data!"
+        
+        # Summary questions - be more specific
+        if any(phrase in query_lower for phrase in ["summary", "summarize", "overview"]):
             return self._get_data_summary()
         
-        # Column questions
-        if any(word in query_lower for word in ["column", "field", "attribute"]):
-            if "statistic" in query_lower or "stats" in query_lower:
-                return self._get_column_stats()
-            if "name" in query_lower or "list" in query_lower:
-                return f"The dataset has {len(self.df.columns)} columns: {', '.join(self.df.columns)}"
+        if any(phrase in query_lower for phrase in ["what is in", "whats in", "what's in", "about this file", "tell me about this"]):
+            return self._get_data_summary()
         
-        # Row questions
-        if "row" in query_lower:
-            if "how many" in query_lower or "count" in query_lower:
-                return f"The dataset has {len(self.df):,} rows."
-            if "show" in query_lower or "display" in query_lower:
-                return f"Here are the first 5 rows:\n\n{self.df.head().to_string()}"
+        # Column names/list - be specific
+        if any(phrase in query_lower for phrase in ["column names", "list columns", "what columns", "name of columns"]):
+            return f"📋 **Column Names:**\n\nThis dataset has **{len(self.df.columns)} columns**:\n\n" + "\n".join([f"• {col}" for col in self.df.columns])
         
-        # Statistics questions
-        if any(word in query_lower for word in ["statistic", "stats", "average", "mean", "median", "min", "max", "total", "sum"]):
-            return self._get_statistics(query_lower)
+        # Column statistics - be specific
+        if any(phrase in query_lower for phrase in ["column statistic", "column stats", "describe columns"]):
+            return self._get_column_stats()
         
-        # Salary questions (common use case)
+        # Statistics - general
+        if query_lower in ["statistics", "stats", "show statistics", "show stats"]:
+            return self._get_column_stats()
+        
+        # Row count questions - be specific
+        if any(phrase in query_lower for phrase in ["how many rows", "row count", "number of rows", "total rows"]):
+            return f"📊 **Row Count:**\n\nThe dataset has **{len(self.df):,} rows**."
+        
+        # Show data/display - be specific
+        if "show" in query_lower and "row" in query_lower:
+            try:
+                nums = [int(s) for s in query_lower.split() if s.isdigit()]
+                num = nums[0] if nums else 5
+                return f"📋 **First {num} Rows:**\n\n{self.df.head(num).to_string()}"
+            except:
+                return f"📋 **First 5 Rows:**\n\n{self.df.head(5).to_string()}"
+        
+        if "display" in query_lower and "row" in query_lower:
+            return f"📋 **First 5 Rows:**\n\n{self.df.head(5).to_string()}"
+        
+        # Missing values - be specific
+        if any(phrase in query_lower for phrase in ["missing values", "missing data", "null values", "check for missing", "any missing"]):
+            return self._get_missing_values()
+        
+        # Duplicates - be specific
+        if any(phrase in query_lower for phrase in ["duplicate", "duplicates", "any duplicates", "check duplicate"]):
+            return self._get_duplicates()
+        
+        # Data types - be specific
+        if any(phrase in query_lower for phrase in ["data types", "column types", "type of columns"]):
+            return self._get_data_types()
+        
+        # Salary - specific
         if "salary" in query_lower:
             return self._get_salary_info(query_lower)
         
-        # Sales questions
+        # Sales - specific
         if "sales" in query_lower:
             return self._get_sales_info(query_lower)
         
-        # Data types
-        if "type" in query_lower or "dtype" in query_lower:
-            return self._get_data_types()
+        # Sum/total - be specific to column
+        if "sum" in query_lower or "total" in query_lower:
+            if "quantity" in query_lower:
+                return self._get_column_sum("Quantity")
+            if "sales" in query_lower:
+                return self._get_column_sum("Sales")
+            return self._get_totals()
         
-        # Missing values
-        if any(word in query_lower for word in ["missing", "null", "empty", "nan"]):
-            return self._get_missing_values()
+        # Average - be specific
+        if any(phrase in query_lower for phrase in ["average", "mean", "avg"]):
+            return self._get_averages()
         
-        # Default response with data info
+        # Min/Max - be specific
+        if any(phrase in query_lower for phrase in ["minimum", "maximum", "min", "max", "highest", "lowest"]):
+            return self._get_min_max()
+        
+        # Clean/remove - be specific
+        if "remove" in query_lower:
+            if "duplicate" in query_lower:
+                return self._remove_duplicates_action()
+            if "null" in query_lower or "missing" in query_lower:
+                return self._remove_nulls_action()
+        
+        # Fill nulls
+        if any(phrase in query_lower for phrase in ["fill null", "fill missing", "fill values"]):
+            return self._fill_nulls_action()
+        
+        # Fix data types
+        if any(phrase in query_lower for phrase in ["fix type", "fix data type", "correct type"]):
+            return self._fix_data_types()
+        
+        # Clean all - complete cleaning
+        if any(phrase in query_lower for phrase in ["clean all", "clean everything", "fix everything", "make clean", "clean data", "clean file", "poori tarah clean"]):
+            return self._clean_all_action()
+        
+        # Clean - ask for clarification or do basic clean
+        if "clean" in query_lower:
+            return self._clean_all_action()
+        
+        # Default - provide general info
         return self._get_data_summary()
 
     def _get_data_summary(self) -> str:
@@ -240,17 +300,214 @@ class AIExcelAgent:
         total_missing = missing.sum()
         
         if total_missing == 0:
-            return "✅ No missing values found! Your data is complete."
+            return "✅ **No Missing Values!**\n\nYour data is complete - there are no missing or null values in any column."
         
-        info = f"⚠️ **Missing Values Report**\n\n"
-        info += f"Total missing values: {total_missing}\n\n"
+        info = f"⚠️ **Missing Values Report**\n\n**Total missing values: {total_missing}**\n\n"
         
         for col, count in missing.items():
             if count > 0:
                 pct = (count / len(self.df)) * 100
-                info += f"• **{col}:** {count} ({pct:.1f}%)\n"
+                info += f"• **{col}:** {count} missing ({pct:.1f}%)\n"
         
         return info
+
+    def _get_duplicates(self) -> str:
+        """Get duplicate rows information."""
+        dup_count = self.df.duplicated().sum()
+        
+        if dup_count == 0:
+            return "✅ **No Duplicates!**\n\nYour dataset has no duplicate rows - all records are unique."
+        
+        return f"⚠️ **Duplicate Rows Found**\n\nFound **{dup_count:,} duplicate rows** in the dataset.\n\nYou can remove them by asking: 'Remove duplicate rows'"
+
+    def _get_data_types(self) -> str:
+        """Get data types for all columns."""
+        types = "📋 **Column Data Types**\n\n"
+        for col, dtype in self.column_info.items():
+            types += f"• **{col}:** `{dtype}`\n"
+        return types
+
+    def _get_averages(self) -> str:
+        """Get average/mean for numeric columns."""
+        numeric_cols = self.df.select_dtypes(include=['number']).columns
+        
+        if len(numeric_cols) == 0:
+            return "No numeric columns found for average calculation."
+        
+        info = "📊 **Average Values**\n\n"
+        for col in numeric_cols:
+            avg = self.df[col].mean()
+            info += f"• **{col}:** {avg:,.2f}\n"
+        
+        return info
+
+    def _get_min_max(self) -> str:
+        """Get min/max for numeric columns."""
+        numeric_cols = self.df.select_dtypes(include=['number']).columns
+        
+        if len(numeric_cols) == 0:
+            return "No numeric columns found."
+        
+        info = "📊 **Min/Max Values**\n\n"
+        for col in numeric_cols:
+            min_val = self.df[col].min()
+            max_val = self.df[col].max()
+            info += f"• **{col}:** Min={min_val:,.2f} | Max={max_val:,.2f}\n"
+        
+        return info
+
+    def _get_totals(self) -> str:
+        """Get sum/total for numeric columns."""
+        numeric_cols = self.df.select_dtypes(include=['number']).columns
+        
+        if len(numeric_cols) == 0:
+            return "No numeric columns found."
+        
+        info = "📊 **Total Values**\n\n"
+        for col in numeric_cols:
+            total = self.df[col].sum()
+            info += f"• **{col}:** {total:,.2f}\n"
+        
+        return info
+
+    def _get_column_sum(self, column_name: str) -> str:
+        """Get sum for a specific column."""
+        # Try to find matching column
+        actual_col = None
+        for col in self.df.columns:
+            if column_name.lower() in col.lower():
+                actual_col = col
+                break
+        
+        if actual_col is None or actual_col not in self.df.columns:
+            return f"Column '{column_name}' not found."
+        
+        if not pd.api.types.is_numeric_dtype(self.df[actual_col]):
+            return f"Column '{actual_col}' is not numeric."
+        
+        total = self.df[actual_col].sum()
+        return f"📊 **Sum of {actual_col}**\n\n**Total: {total:,.2f}**"
+
+    def _filter_data(self, query: str) -> str:
+        """Filter data based on simple conditions."""
+        try:
+            # Try to extract column name and value
+            numeric_cols = self.df.select_dtypes(include=['number']).columns
+            
+            if len(numeric_cols) > 0:
+                col = numeric_cols[0]
+                # Show top 5 by first numeric column
+                sorted_df = self.df.nlargest(5, col)
+                return f"📊 **Top 5 by {col}:**\n\n{sorted_df.to_string()}"
+            
+            return "Please specify which column to filter by."
+        except Exception as e:
+            return f"Could not filter: {str(e)}"
+
+    def _remove_duplicates_action(self) -> str:
+        """Action to remove duplicates."""
+        dup_count = self.df.duplicated().sum()
+        if dup_count == 0:
+            return "✅ No duplicates to remove! Your data is already clean."
+        
+        # Actually remove duplicates
+        original_rows = len(self.df)
+        self.df = self.df.drop_duplicates()
+        new_rows = len(self.df)
+        removed = original_rows - new_rows
+        
+        # Update session state via return
+        return f"✅ **Duplicates Removed!**\n\n• Original rows: {original_rows}\n• New rows: {new_rows}\n• **Removed: {removed} duplicate rows**\n\nYour data is now clean!"
+
+    def _remove_nulls_action(self) -> str:
+        """Action to remove nulls."""
+        missing = self.df.isnull().sum().sum()
+        if missing == 0:
+            return "✅ No missing values to remove! Your data is already clean."
+        
+        # Actually remove rows with nulls
+        original_rows = len(self.df)
+        self.df = self.df.dropna()
+        new_rows = len(self.df)
+        removed = original_rows - new_rows
+        
+        return f"✅ **Null Values Removed!**\n\n• Original rows: {original_rows}\n• New rows: {new_rows}\n• **Removed: {removed} rows with missing values**\n\nYour data is now clean!"
+
+    def _fill_nulls_action(self) -> str:
+        """Action to fill null values with mean/median."""
+        missing = self.df.isnull().sum().sum()
+        if missing == 0:
+            return "✅ No missing values to fill! Your data is already complete."
+        
+        # Fill numeric columns with mean, text with 'Unknown'
+        filled_count = 0
+        for col in self.df.columns:
+            if self.df[col].isnull().sum() > 0:
+                if pd.api.types.is_numeric_dtype(self.df[col]):
+                    self.df[col] = self.df[col].fillna(self.df[col].mean())
+                else:
+                    self.df[col] = self.df[col].fillna('Unknown')
+                filled_count += self.df[col].notna().sum()
+        
+        return f"✅ **Missing Values Filled!**\n\n• Filled numeric columns with **mean**\n• Filled text columns with **'Unknown'**\n• **Total filled: {missing} values**\n\nYour data is now complete!"
+
+    def _fix_data_types(self) -> str:
+        """Fix incorrect data types."""
+        changes = []
+        
+        for col in self.df.columns:
+            # Try to convert to numeric
+            if self.df[col].dtype == 'object':
+                try:
+                    self.df[col] = pd.to_numeric(self.df[col])
+                    changes.append(f"• **{col}**: Text → Number")
+                except:
+                    pass
+            
+            # Try to convert to datetime
+            if self.df[col].dtype == 'object' and 'date' in col.lower():
+                try:
+                    self.df[col] = pd.to_datetime(self.df[col])
+                    changes.append(f"• **{col}**: Text → Date")
+                except:
+                    pass
+        
+        if not changes:
+            return "✅ Data types look good! No fixes needed."
+        
+        return f"✅ **Data Types Fixed!**\n\n" + "\n".join(changes) + "\n\nYour data types are now correct!"
+
+    def _clean_all_action(self) -> str:
+        """Complete data cleaning - remove duplicates, nulls, fix types."""
+        actions = []
+        
+        # Remove duplicates
+        dup_count = self.df.duplicated().sum()
+        if dup_count > 0:
+            original = len(self.df)
+            self.df = self.df.drop_duplicates()
+            actions.append(f"✅ Removed {original - len(self.df)} duplicates")
+        
+        # Remove nulls
+        missing = self.df.isnull().sum().sum()
+        if missing > 0:
+            original = len(self.df)
+            self.df = self.df.dropna()
+            actions.append(f"✅ Removed {original - len(self.df)} rows with missing values")
+        
+        # Fix types
+        for col in self.df.columns:
+            if self.df[col].dtype == 'object':
+                try:
+                    self.df[col] = pd.to_numeric(self.df[col])
+                    actions.append(f"✅ Converted {col} to numeric")
+                except:
+                    pass
+        
+        if not actions:
+            return "✅ Your data is already clean! No issues found."
+        
+        return f"🎉 **Complete Data Cleaning Done!**\n\n" + "\n".join(actions) + "\n\n**Your Excel file is now clean and accurate!** ✨"
 
     def process_query(self, query: str) -> Dict[str, Any]:
         """Process query using rule-based AI."""
