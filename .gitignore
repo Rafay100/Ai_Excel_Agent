@@ -16,6 +16,13 @@ ENV/
 *.swo
 *~
 
+# Node modules (not needed for Streamlit)
+node_modules/
+*/node_modules/
+*.npm
+package.json
+package-lock.json
+
 # Project specific
 uploads/*
 outputs/*
@@ -25,6 +32,9 @@ outputs/*
 # Environment
 .env
 .env.local
+
+# Streamlit secrets (IMPORTANT for Hugging Face)
+.streamlit/secrets.toml
 
 # OS
 .DS_Store
@@ -37,3 +47,6 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Jupyter
+.ipynb_checkpoints
